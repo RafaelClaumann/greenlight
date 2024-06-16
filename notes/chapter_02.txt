@@ -1,0 +1,160 @@
+2.1 Project Setup and Skeleton Structure
+
+    go mod init greenlight.claumann.net
+
+    - When there is a valid go.mod file in the root of your project directory, your project is a module.
+    - When you’re working inside your project directory and download a dependency with go get, then the exact version of the dependency will be recorded in the go.mod file.
+    - When you run or build the code in your project, Go will use the exact dependencies listed in the go.mod file.
+
+    Generating the skeleton directory structure
+
+        - The bin directory will contain our compiled application binaries, ready for deployment to a production server.
+        - The cmd/api directory will contain the application-specific code for our Greenlight API application.
+        - The internal directory will contain various ancillary packages used by our API. It will contain the code for interacting with our database, doing data validation, sending emails and so on.
+        - The migrations directory will contain the SQL migration files for our database.
+        - The remote directory will contain the configuration files and setup scripts for our production server.
+        - The go.mod file will declare our project dependencies, versions and module path.
+        - The Makefile will contain recipes for automating common administrative task.
+
+    Hello world!
+
+        go run ./cmd/api
+    
+2.2 A Basic HTTP Server
+
+    Iniciaremos pelo endpoint '/v1/healthcheck'.
+
+        /v1/healthcheck | healthcheckHandler | Show application information
+    
+    Creating the healthcheck handler
+        
+        O healthcheckHandler é implementado como um método da struct application.
+        Isto é uma maneira efetiva e idiomatica para tornar dependencias disponíveis para os handlers
+        evitando o uso de variáveis globais e closures.
+        Qualquer dependencia que healthcheckHandler precise pode ser incluída através de um novo campo
+        na struct application.
+
+    Demonstration
+        go run ./cmd/api
+            2024/06/16 17:24:38 starting development server on :4000
+        
+        curl localhost:4000/v1/healthcheck -i
+            HTTP/1.1 200 OK
+            Date: Sun, 16 Jun 2024 20:24:41 GMT
+            Content-Length: 69
+            Content-Type: text/plain; charset=utf-8
+
+            status: available
+            port: 4000
+            environment: development
+            version: 1.0.0
+        
+
+        go run ./cmd/api -port=3030 -env=production
+            2024/06/16 17:25:34 starting production server on :3030
+
+        curl localhost:3030/v1/healthcheck -i
+            HTTP/1.1 200 OK
+            Date: Sun, 16 Jun 2024 20:25:42 GMT
+            Content-Length: 68
+            Content-Type: text/plain; charset=utf-8
+
+            status: available
+            port: 3030
+            environment: production
+            version: 1.0.0
+
+    Additional Information
+
+        API versioning
+            APIs evoluem e muitas vezes precisam manter a compatibilidade com as versões anteriores.
+
+            Existem duas maneira comuns de fazer isso:
+                1 - Utilizando um prefixo em todas as URLs da api, como /v1/healthcheck e /v2/healthcheck.
+                2 - Utilizando header Content-Type e Accept na request e response, como Accept: application/vnd.greenlight-v1.
+            
+            Do ponto de vista da semântica HTTP, usar headers para selecionar a versão da API é a abordagem mais “pura”.
+            Mas do ponto de vista da experiência do usuário, usar um prefixo na URL é indiscutivelmente melhor.
+
+2.3 API Endpoints and RESTful Routing
+
+    GET: Use for actions that retrieve information only and don’t change the state of your application or any data.
+    POST: Use for non-idempotent actions that modify state.
+    PUT: Use for idempotent actions that modify the state of a resource at a specific URL.
+    PATCH: Use for actions that partially update a resource at a specific URL.  It’s OK for the action to be either idempotent or non-idempotent.
+    DELETE: Use for actions that delete a resource at a specific URL.
+
+    idempotent
+        Um método HTTP é idempotente se uma requisição idêntica pode ser feita uma ou mais vezes em
+        sequência com o mesmo efeito enquanto deixa o servidor no mesmo estado.
+        Implementados corretamente, o GET, HEAD, PUT, e DELETE são métodos idempotentes, mas não o método POST.
+    
+    Choosing a router
+
+        http.ServeMux é um pouco limitado, em particular, não fornece suporte para rotemento baseado em métodos HTTP,
+        não fornece suporte a 'Clean URLs' e interpolação de parâmetros.
+
+                original URL                                clean URL
+            http://example.com/user.php?id=1            http://example.com/user/1
+            http://example.com/index.php?page=name      http://example.com/name
+            http://example.com/kb/index.php?cat=1&id=23 http://example.com/kb/1/23
+        
+            source: https://en.wikipedia.org/wiki/Clean_URL
+        
+            OBS: as versões mais recentes do http.ServeMux melhorou o suporte ao roteamentoa avançado: https://go.dev/blog/routing-enhancements.
+
+        Nesse projeto vamos usar o 'httprouter' por ser um pacote estável, testado e
+        que fornece as funcionalidades necessárias.
+
+            go get github.com/julienschmidt/httprouter@v1.3.0
+    
+    Encapsulating the API routes
+
+        Para prevenir que a fução main() fique enorme, vamos encapsular as rotas em routes.go.
+        Remover o http.ServeMux do main() e fazer com que ele use a instancia de httprouter retornada por app.routes().
+
+            srv := &http.Server{
+                Addr:         fmt.Sprintf(":%d", cfg.port),
+                Handler:      app.routes(),
+                IdleTimeout:  time.Minute,
+                ReadTimeout:  10 * time.Second,
+                WriteTimeout: 30 * time.Second,
+            }
+        
+    Adding the new handler functions
+
+        Criar o arquivo movies.go para declarar os métodos createMovieHandler and showMovieHandler usados em routes.go.The httprouter package has automatically sent a 405 Method Not Allowed response for us, including an Allow header which lists the HTTP methods that are supported for the endpoint.
+
+        Requisições realizadas com métodos HTTP não suportados por determinado endpoint são respondidas automaticamente com
+        405 Method Not Allowed incluindo o header Allow com a lista de métodos HTTP suportados pelo endpoint.  
+
+            $ curl -i -X POST localhost:4000/v1/healthcheck
+                HTTP/1.1 405 Method Not Allowed
+                Allow: GET, OPTIONS
+                Content-Type: text/plain; charset=utf-8
+                X-Content-Type-Options: nosniff
+                Date: Tue, 06 Apr 2021 06:59:04 GMT
+                Content-Length: 19
+
+                Method Not Allowed
+        
+        É possível fazer uma requisição do tipo OPTIONS para descobrir os método HTTP aceitos por determinado endoint.
+            
+            $ curl -i -X OPTIONS localhost:4000/v1/healthcheck
+                HTTP/1.1 200 OK
+                Allow: GET, OPTIONS
+                Date: Tue, 06 Apr 2021 07:01:29 GMT
+                Content-Length: 0
+
+    Creating a helper to read ID parameters
+
+        O código usado para extrair o ID de URLs como /v1/movies/:id será comum em outras partes do projeto e por isso
+        vamos abstrair a lógica para um método helper.
+
+        Criar o arquivo helpers.go.
+        Adicionar o método readIDParam().
+
+        Observação:
+            O método readIDParam() não usa nenhume dependencia da struct application e por este motivo poderia ser escrito
+            como uma função regular.
+            Mas em geral, é recomendado definir todos os helpers e handlers específicos da aplicação como métodos de application.
