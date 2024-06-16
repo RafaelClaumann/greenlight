@@ -1,0 +1,7 @@
+2.1 Project Setup and Skeleton Structure
+
+    go mod init greenlight.claumann.net
+
+    - When there is a valid go.mod file in the root of your project directory, your project is a module.
+    - When you’re working inside your project directory and download a dependency with go get, then the exact version of the dependency will be recorded in the go.mod file.
+    - When you run or build the code in your project, Go will use the exact dependencies listed in the go.mod file.
