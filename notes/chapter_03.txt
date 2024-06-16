@@ -1,0 +1,6 @@
+Chapter 3 Sending JSON Responses
+
+    - Como enviar respostas JSON da sua API REST.
+    - Como encodificar objetos Go para JSON usando o pacote encoding/json.
+    - Técnicas para customizar a maneira que objetos Go são encodificados como JSON.
+    - Como criar um helper para enviar respostas JSON e manter a API consistente.
