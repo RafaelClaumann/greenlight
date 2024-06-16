@@ -4,3 +4,25 @@ Chapter 3 Sending JSON Responses
     - Como encodificar objetos Go para JSON usando o pacote encoding/json.
     - Técnicas para customizar a maneira que objetos Go são encodificados como JSON.
     - Como criar um helper para enviar respostas JSON e manter a API consistente.
+
+3.1 Fixed-Format JSON
+
+    Atualizar o healthcheckHandler para que retorne um JSON parecido com este:
+        {
+            "status": "available",
+            "environment": "development",
+            "version": "1.0.0"
+        }
+    
+    Vale ressaltar que JSON é apenas um texto, ele poderia ser escrito com w.Write(), io.WriteString() ou qualquer fmt.Fprint.
+
+    Os handlers que respondem com objetos JSON devem incluir o header Content-Type: application/json 
+    para que os clientes saibam como interpretar a resposta.
+
+        $ curl -i localhost:4000/v1/healthcheck
+            HTTP/1.1 200 OK
+            Content-Type: application/json
+            Date: Tue, 06 Apr 2021 08:38:12 GMT
+            Content-Length: 73
+
+            {"status": "available", "environment": "development", "version": "1.0.0"}
