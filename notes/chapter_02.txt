@@ -107,3 +107,21 @@
         que fornece as funcionalidades necessárias.
 
             go get github.com/julienschmidt/httprouter@v1.3.0
+    
+    Encapsulating the API routes
+
+        Para prevenir que a fução main() fique enorme, vamos encapsular as rotas em routes.go.
+        Remover o http.ServeMux do main() e fazer com que ele use a instancia de httprouter retornada por app.routes().
+
+            srv := &http.Server{
+                Addr:         fmt.Sprintf(":%d", cfg.port),
+                Handler:      app.routes(),
+                IdleTimeout:  time.Minute,
+                ReadTimeout:  10 * time.Second,
+                WriteTimeout: 30 * time.Second,
+            }
+        
+    Adding the new handler functions
+
+        Criar o arquivo movies.go para declarar os métodos createMovieHandler and showMovieHandler usados em routes.go.
+
