@@ -75,3 +75,35 @@
             
             Do ponto de vista da semântica HTTP, usar headers para selecionar a versão da API é a abordagem mais “pura”.
             Mas do ponto de vista da experiência do usuário, usar um prefixo na URL é indiscutivelmente melhor.
+
+2.3 API Endpoints and RESTful Routing
+
+    GET: Use for actions that retrieve information only and don’t change the state of your application or any data.
+    POST: Use for non-idempotent actions that modify state.
+    PUT: Use for idempotent actions that modify the state of a resource at a specific URL.
+    PATCH: Use for actions that partially update a resource at a specific URL.  It’s OK for the action to be either idempotent or non-idempotent.
+    DELETE: Use for actions that delete a resource at a specific URL.
+
+    idempotent
+        Um método HTTP é idempotente se uma requisição idêntica pode ser feita uma ou mais vezes em
+        sequência com o mesmo efeito enquanto deixa o servidor no mesmo estado.
+        Implementados corretamente, o GET, HEAD, PUT, e DELETE são métodos idempotentes, mas não o método POST.
+    
+    Choosing a router
+
+        http.ServeMux é um pouco limitado, em particular, não fornece suporte para rotemento baseado em métodos HTTP,
+        não fornece suporte a 'Clean URLs' e interpolação de parâmetros.
+
+                original URL                                clean URL
+            http://example.com/user.php?id=1            http://example.com/user/1
+            http://example.com/index.php?page=name      http://example.com/name
+            http://example.com/kb/index.php?cat=1&id=23 http://example.com/kb/1/23
+        
+            source: https://en.wikipedia.org/wiki/Clean_URL
+        
+            OBS: as versões mais recentes do http.ServeMux melhorou o suporte ao roteamentoa avançado: https://go.dev/blog/routing-enhancements.
+
+        Nesse projeto vamos usar o 'httprouter' por ser um pacote estável, testado e
+        que fornece as funcionalidades necessárias.
+
+            go get github.com/julienschmidt/httprouter@v1.3.0
