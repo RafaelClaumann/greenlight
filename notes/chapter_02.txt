@@ -19,3 +19,59 @@
     Hello world!
 
         go run ./cmd/api
+    
+2.2 A Basic HTTP Server
+
+    Iniciaremos pelo endpoint '/v1/healthcheck'.
+
+        /v1/healthcheck | healthcheckHandler | Show application information
+    
+    Creating the healthcheck handler
+        
+        O healthcheckHandler é implementado como um método da struct application.
+        Isto é uma maneira efetiva e idiomatica para tornar dependencias disponíveis para os handlers
+        evitando o uso de variáveis globais e closures.
+        Qualquer dependencia que healthcheckHandler precise pode ser incluída através de um novo campo
+        na struct application.
+
+    Demonstration
+        go run ./cmd/api
+            2024/06/16 17:24:38 starting development server on :4000
+        
+        curl localhost:4000/v1/healthcheck -i
+            HTTP/1.1 200 OK
+            Date: Sun, 16 Jun 2024 20:24:41 GMT
+            Content-Length: 69
+            Content-Type: text/plain; charset=utf-8
+
+            status: available
+            port: 4000
+            environment: development
+            version: 1.0.0
+        
+
+        go run ./cmd/api -port=3030 -env=production
+            2024/06/16 17:25:34 starting production server on :3030
+
+        curl localhost:3030/v1/healthcheck -i
+            HTTP/1.1 200 OK
+            Date: Sun, 16 Jun 2024 20:25:42 GMT
+            Content-Length: 68
+            Content-Type: text/plain; charset=utf-8
+
+            status: available
+            port: 3030
+            environment: production
+            version: 1.0.0
+
+    Additional Information
+
+        API versioning
+            APIs evoluem e muitas vezes precisam manter a compatibilidade com as versões anteriores.
+
+            Existem duas maneira comuns de fazer isso:
+                1 - Utilizando um prefixo em todas as URLs da api, como /v1/healthcheck e /v2/healthcheck.
+                2 - Utilizando header Content-Type e Accept na request e response, como Accept: application/vnd.greenlight-v1.
+            
+            Do ponto de vista da semântica HTTP, usar headers para selecionar a versão da API é a abordagem mais “pura”.
+            Mas do ponto de vista da experiência do usuário, usar um prefixo na URL é indiscutivelmente melhor.
