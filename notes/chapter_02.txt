@@ -123,5 +123,38 @@
         
     Adding the new handler functions
 
-        Criar o arquivo movies.go para declarar os métodos createMovieHandler and showMovieHandler usados em routes.go.
+        Criar o arquivo movies.go para declarar os métodos createMovieHandler and showMovieHandler usados em routes.go.The httprouter package has automatically sent a 405 Method Not Allowed response for us, including an Allow header which lists the HTTP methods that are supported for the endpoint.
 
+        Requisições realizadas com métodos HTTP não suportados por determinado endpoint são respondidas automaticamente com
+        405 Method Not Allowed incluindo o header Allow com a lista de métodos HTTP suportados pelo endpoint.  
+
+            $ curl -i -X POST localhost:4000/v1/healthcheck
+                HTTP/1.1 405 Method Not Allowed
+                Allow: GET, OPTIONS
+                Content-Type: text/plain; charset=utf-8
+                X-Content-Type-Options: nosniff
+                Date: Tue, 06 Apr 2021 06:59:04 GMT
+                Content-Length: 19
+
+                Method Not Allowed
+        
+        É possível fazer uma requisição do tipo OPTIONS para descobrir os método HTTP aceitos por determinado endoint.
+            
+            $ curl -i -X OPTIONS localhost:4000/v1/healthcheck
+                HTTP/1.1 200 OK
+                Allow: GET, OPTIONS
+                Date: Tue, 06 Apr 2021 07:01:29 GMT
+                Content-Length: 0
+
+    Creating a helper to read ID parameters
+
+        O código usado para extrair o ID de URLs como /v1/movies/:id será comum em outras partes do projeto e por isso
+        vamos abstrair a lógica para um método helper.
+
+        Criar o arquivo helpers.go.
+        Adicionar o método readIDParam().
+
+        Observação:
+            O método readIDParam() não usa nenhume dependencia da struct application e por este motivo poderia ser escrito
+            como uma função regular.
+            Mas em geral, é recomendado definir todos os helpers e handlers específicos da aplicação como métodos de application.
