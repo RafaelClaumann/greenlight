@@ -5,3 +5,17 @@
     - When there is a valid go.mod file in the root of your project directory, your project is a module.
     - When you’re working inside your project directory and download a dependency with go get, then the exact version of the dependency will be recorded in the go.mod file.
     - When you run or build the code in your project, Go will use the exact dependencies listed in the go.mod file.
+
+    Generating the skeleton directory structure
+
+        - The bin directory will contain our compiled application binaries, ready for deployment to a production server.
+        - The cmd/api directory will contain the application-specific code for our Greenlight API application.
+        - The internal directory will contain various ancillary packages used by our API. It will contain the code for interacting with our database, doing data validation, sending emails and so on.
+        - The migrations directory will contain the SQL migration files for our database.
+        - The remote directory will contain the configuration files and setup scripts for our production server.
+        - The go.mod file will declare our project dependencies, versions and module path.
+        - The Makefile will contain recipes for automating common administrative task.
+
+    Hello world!
+
+        go run ./cmd/api
