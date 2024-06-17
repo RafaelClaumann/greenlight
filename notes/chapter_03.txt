@@ -1,7 +1,7 @@
 Chapter 3 Sending JSON Responses
 
     - Como enviar respostas JSON da sua API REST.
-    - Como encodificar objetos Go para JSON usando o pacote encoding/json.
+    - Como codificar objetos Go para JSON usando o pacote encoding/json.
     - Técnicas para customizar a maneira que objetos Go são encodificados como JSON.
     - Como criar um helper para enviar respostas JSON e manter a API consistente.
 
@@ -26,3 +26,27 @@ Chapter 3 Sending JSON Responses
             Content-Length: 73
 
             {"status": "available", "environment": "development", "version": "1.0.0"}
+
+3.2 JSON Encoding
+    
+    O pacote encoding/json fornece duas possibilidades para codificar objetos para JSON.
+        - Invocar a função json.Marshal() 
+        - Declarar e utilizar o json.Encoder type
+    
+    Para enviar JSON através de requisições HTTP, json.Marshal() geralmente é a melhor escolha.
+    O json.Marshal() recebe um objeto Go como parâmetro e retorna sua representação JSON em um slice byte[].
+    A assinatura desta função se parece com isso:
+        func Marshal(v interface{}) ([]byte, error)
+    
+    O parâmetro v é conhecido como Empty Interface.
+    Isso significa que qualquer tipo do Go pode ser passado como o parametro v.
+
+    Atualizar o healthcheckHandler para que ele use json.Marshal() para gerar um JSON a partir de um map.
+
+        $curl localhost:4000/v1/healthcheck -i
+            HTTP/1.1 200 OK
+            Content-Type: application/json
+            Date: Mon, 17 Jun 2024 00:37:06 GMT
+            Content-Length: 69
+
+            {"environment":"development","status":"available","version":"1.0.0"}
