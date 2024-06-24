@@ -1,0 +1,59 @@
+Chapter 3 Sending JSON Responses
+
+    - Como enviar respostas JSON da sua API REST.
+    - Como codificar objetos Go para JSON usando o pacote encoding/json.
+    - Técnicas para customizar a maneira que objetos Go são encodificados como JSON.
+    - Como criar um helper para enviar respostas JSON e manter a API consistente.
+
+3.1 Fixed-Format JSON
+
+    Atualizar o healthcheckHandler para que retorne um JSON parecido com este:
+        {
+            "status": "available",
+            "environment": "development",
+            "version": "1.0.0"
+        }
+    
+    Vale ressaltar que JSON é apenas um texto, ele poderia ser escrito com w.Write(), io.WriteString() ou qualquer fmt.Fprint.
+
+    Os handlers que respondem com objetos JSON devem incluir o header Content-Type: application/json 
+    para que os clientes saibam como interpretar a resposta.
+
+        $ curl -i localhost:4000/v1/healthcheck
+            HTTP/1.1 200 OK
+            Content-Type: application/json
+            Date: Tue, 06 Apr 2021 08:38:12 GMT
+            Content-Length: 73
+
+            {"status": "available", "environment": "development", "version": "1.0.0"}
+
+3.2 JSON Encoding
+    
+    O pacote encoding/json fornece duas possibilidades para codificar objetos para JSON.
+        - Invocar a função json.Marshal() 
+        - Declarar e utilizar o json.Encoder type
+    
+    Para enviar JSON através de requisições HTTP, json.Marshal() geralmente é a melhor escolha.
+    O json.Marshal() recebe um objeto Go como parâmetro e retorna sua representação JSON em um slice byte[].
+    A assinatura desta função se parece com isso:
+        func Marshal(v interface{}) ([]byte, error)
+    
+    O parâmetro v é conhecido como Empty Interface.
+    Isso significa que qualquer tipo do Go pode ser passado como o parametro v.
+
+    Atualizar o healthcheckHandler para que ele use json.Marshal() para gerar um JSON a partir de um map.
+
+        $curl localhost:4000/v1/healthcheck -i
+            HTTP/1.1 200 OK
+            Content-Type: application/json
+            Date: Mon, 17 Jun 2024 00:37:06 GMT
+            Content-Length: 69
+
+            {"environment":"development","status":"available","version":"1.0.0"}
+    
+    Creating a writeJSON helper method
+
+        Como a API vai responder JSONs em diferentes lugares faz sentido criar um metodo helper writeJSON().
+        Também será preciso um método helper para inseris headers arbitrários nas respostas.
+        Com a criação do writeJSON() podemos simplificar o handler healthcheckHandler.
+    
