@@ -50,3 +50,10 @@ Chapter 3 Sending JSON Responses
             Content-Length: 69
 
             {"environment":"development","status":"available","version":"1.0.0"}
+    
+    Creating a writeJSON helper method
+
+        Como a API vai responder JSONs em diferentes lugares faz sentido criar um metodo helper writeJSON().
+        Também será preciso um método helper para inseris headers arbitrários nas respostas.
+        Com a criação do writeJSON() podemos simplificar o handler healthcheckHandler.
+    
