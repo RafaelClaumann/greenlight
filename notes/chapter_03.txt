@@ -64,3 +64,10 @@ Chapter 3 Sending JSON Responses
     
     É crucial que os campos de Movie sejam exportados, ou seja, declarados com a primeira letra maiuscula.
     Desta forma os campos estarão visiveis a biblioteca encoding/json.
+
+    Changing keys in the JSON object
+
+        É possível customizar os campos codificados no JSON anotando-os com Struct Tags.
+        O uso mais comum para isso é alterar a forma com que o nome do campo é apresentado no objeto JSON.
+
+        Vamos anotar os campos da struct Movie para seguir o padrão snake_case.
