@@ -56,4 +56,11 @@ Chapter 3 Sending JSON Responses
         Como a API vai responder JSONs em diferentes lugares faz sentido criar um metodo helper writeJSON().
         Também será preciso um método helper para inseris headers arbitrários nas respostas.
         Com a criação do writeJSON() podemos simplificar o handler healthcheckHandler.
+
+3.3 Encoding Structs
+
+    Vamos criar uma nova struct Movie na pasta internal/data, codifica-la em JSON e retorna-la no método showMovieHandler.
+    O objeto json é escrito na resposta usando o helper writeJSON().
     
+    É crucial que os campos de Movie sejam exportados, ou seja, declarados com a primeira letra maiuscula.
+    Desta forma os campos estarão visiveis a biblioteca encoding/json.
