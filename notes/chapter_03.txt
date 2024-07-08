@@ -71,3 +71,46 @@ Chapter 3 Sending JSON Responses
         O uso mais comum para isso é alterar a forma com que o nome do campo é apresentado no objeto JSON.
 
         Vamos anotar os campos da struct Movie para seguir o padrão snake_case.
+    
+    Hiding struct fields in the JSON object
+
+        Também é possível controlar a visibilidae dos campos individualmente usando as flags omitempty e -(hífen).
+
+        O -(hífen) serve para ocultar um campo sob qualquer ciscunstancia.
+        Isso é útil para campos que contêm informações internas do sistema que não são relevantes para seus usuários
+        ou informações confidenciais que você não deseja expor.
+
+        O omitempty oculta o campo se e somente se o valor do campo estiver vazio.
+        Vazio(empty) significa que:
+            - O valor é igual a false, 0 ou "".
+            - É um array, slice ou map vazio.
+            - É um ponteiro nil ou valor de inteface nil.
+        
+        O campo CreatedAt deve estar oculto em todos os casos.
+        Os campos Year, Runtime e Genres devem ser ocultados da resposta se e somente se forem vazios.
+
+        É possível usar omitempty sem alterar o nome do campo.
+        
+            Basta fazer:
+                `json:",omitempty"`
+            ao invés de:
+                `json:"year,omitempty"`
+
+        Lembrando que também é possível ocultar um campo do JSON declarando-o com inicial em letra minuscula.
+        Usar o -(hifen) é uma boa prática e ajuda na leitura do código.
+
+    Additional Information
+
+        The string struct tag directive
+
+            É possível usar a tag 'string' em campos da struct para forçar os dados a serem representados como uma string na saída JSON.
+
+                type Movie struct {
+                    ID        int64     `json:"id"`
+                    CreatedAt time.Time `json:"-"`
+                    Title     string    `json:"title"`
+                    Year      int32     `json:"year,omitempty"`
+                    Runtime   int32     `json:"runtime,omitempty,string"` // Add the string directive
+                    Genres    []string  `json:"genres,omitempty"` 
+                    Version   int32     `json:"version"`
+                }
