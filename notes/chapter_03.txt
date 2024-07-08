@@ -114,3 +114,36 @@ Chapter 3 Sending JSON Responses
                     Genres    []string  `json:"genres,omitempty"` 
                     Version   int32     `json:"version"`
                 }
+
+Chapter 3.4 Formatting and Enveloping Responses
+
+    Os objetos JSON retornados nas requisições feitas com CURL ficam fora de formatação no terminal.
+
+        $ curl localhost:4000/v1/healthcheck
+        {"environment":"development","status":"available","version":"1.0.0"}
+
+        $ curl localhost:4000/v1/movies/123
+        {"id":123,"title":"Casablanca","runtime":102,"genres":["drama","romance","war"],"version":1}
+    
+    É possível melhorar isso usando a função json.MarshalIndent() ao invés da json.Marshal().
+    Este método adiciona espaços, novas linhas e formatação no objeto JSON retornado.
+
+    Atualizar o helper writeJSON() para usar json.MarshalIndent().
+
+    Relative performance
+
+        Apesar de melhorar a legibilidade e experiencia do usuário, o método json.MarshalIndent()
+        acaba degradando a performance e aumentando o tamanho das respostas devido aos caracteres de formatação.
+
+    Enveloping responses
+
+        Vamos encapsular os dados do filme retornado em um objeto "movie" no json.
+        Beneficios de encapsular o objeto:
+            - Torna a resposta auto-documentável e facilita a vida de leitores que a receberem fora de contexto.
+            - Reduz o risco de erros de processamento no clientside. Ele só processará o bjeto se a chave for "movie".
+            - Mitigar erros de segurança em browsers antigos.
+
+        Vamos criar um "envelope" do tipo map[string]interface{} em helpers.go.
+        Alterar o tipo do parametro data do writeJSON() de helpers.go para "envelope".
+        Atualizar showMovieHandler para criar uma instância de "envelope" e fornece-la na chamada a writeJSON().
+        O mesmo deve ser feito em healthcheckHandler.
