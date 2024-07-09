@@ -415,3 +415,10 @@ Chapter 3.5 Advanced JSON Customization
                     
                     - Perda no controle de ordenação dos campos na resposta JSON.
                       Neste exemplo o campo Runtime sempre será o último elemento do objeto JSON.
+
+Chapter 3.6 Sending Error Messages
+
+    Neste momento nossa API responde mensagens de erro em plain text usando os métodos http.Error() e http.NotFound().
+    Vamos resolver isso criando helpers capazes de enviar respostas JSON.
+
+    Criar o arquivo errors.go em cmd/api/.
