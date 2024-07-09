@@ -422,3 +422,4 @@ Chapter 3.6 Sending Error Messages
     Vamos resolver isso criando helpers capazes de enviar respostas JSON.
 
     Criar o arquivo errors.go em cmd/api/.
+    Atualizar os handlers dos arquivos movies.go e healthcheck.go para utilizar os helpers de errors.go.
