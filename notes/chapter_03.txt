@@ -206,3 +206,212 @@ Chapter 3.5 Advanced JSON Customization
                     mas métodos de ponteiro só podem ser invocados em ponteiros."
 
         Atualizar a struct Movie para usar o novo tipo Runtime.
+    
+    Additional Information
+
+        Existem outras abordagens possíveis para customização do campo Runtime.
+
+            Alternative #1 - Customizing the Movie struct
+
+                Ao invés de criar o tipo Runtime, podemos implementar o método MarshalJSON() na própria struct Movie.
+
+
+                    // Note that there are no struct tags on the Movie struct itself.
+                    type Movie struct {
+                        ID        int64
+                        CreatedAt time.Time
+                        Title     string
+                        Year      int32
+                        Runtime   int32
+                        Genres    []string
+                        Version   int32
+                    }
+
+                    // Implement MarshalJSON() method on the Movie struct, so that it satisfies the json.Marshaler interface.
+                    func (m Movie) MarshalJSON() ([]byte, error) {
+                        // Declare a variable to hold the custom runtime string (this will be the empty string "" by default).
+                        var runtime string
+
+                        // If the value of the Runtime field is not zero, set the runtime variable to be a
+                        // string in the format "<runtime> mins".
+                        if m.Runtime != 0 {
+                            runtime = fmt.Sprintf("%d mins", m.Runtime)
+                        }
+
+                        // Create an anonymous struct to hold the data for JSON encoding.
+                        // This has exactly the same fields, types and tags as our Movie struct,
+                        // except that the Runtime field here is a string, instead of an int32.
+                        // Also notice that we don't include a CreatedAt field at all (there's no point including one,
+                        // because we don't want it to appear in the JSON output).
+                        aux := struct {
+                            ID      int64    `json:"id"`
+                            Title   string   `json:"title"`
+                            Year    int32    `json:"year,omitempty"`
+                            Runtime string   `json:"runtime,omitempty"` // This is a string.
+                            Genres  []string `json:"genres,omitempty"`
+                            Version int32    `json:"version"`
+                        }{
+                            // Set the values for the anonymous struct.
+                            ID:      m.ID,
+                            Title:   m.Title,
+                            Year:    m.Year,
+                            Runtime: runtime, // Note that we assign the value from the runtime variable here.
+                            Genres:  m.Genres,
+                            Version: m.Version,
+                        }
+
+                        // Encode the anonymous struct to JSON, and return it.
+                        return json.Marshal(aux)
+                    }
+                
+            Alternative #2 - Embedding an alias
+
+                O problema do código anterior é a verbosidade e repetição.
+                Para reduzir a duplicação é possível "embedar" um alias para a struct Movie na struct anonima.
+
+                    // Notice that we use the - directive on the Runtime field, so that it never appears  in the JSON output.
+                    type Movie struct {
+                        ID        int64     `json:"id"`
+                        CreatedAt time.Time `json:"-"`
+                        Title     string    `json:"title"`
+                        Year      int32     `json:"year,omitempty"`
+                        Runtime   int32     `json:"-"`
+                        Genres    []string  `json:"genres,omitempty"`
+                        Version   int32     `json:"version"`
+                    }
+
+                    func (m Movie) MarshalJSON() ([]byte, error) {
+                        // Create a variable holding the custom runtime string, just like before.
+                        var runtime string
+
+                        if m.Runtime != 0 {
+                            runtime = fmt.Sprintf("%d mins", m.Runtime)
+                        }
+
+                        // Define a MovieAlias type which has the underlying type Movie.
+                        // Due to the way that Go handles type definitions the MovieAlias type will contain all the fields
+                        // that our Movie struct has but, importantly, none of the methods. 
+                        type MovieAlias Movie
+
+                        // Embed the MovieAlias type inside the anonymous struct, along with a Runtime field 
+                        // that has the type string and the necessary struct tags.
+                        // It's important that we embed the MovieAlias type here, rather than the Movie type directly, to avoid 
+                        // inheriting the MarshalJSON() method of the Movie type (which would result in an infinite loop during encoding).
+                        aux := struct {
+                            MovieAlias
+                            Runtime string `json:"runtime,omitempty"`
+                        }{
+                            MovieAlias: MovieAlias(m),
+                            Runtime:    runtime,
+                        }
+
+                        return json.Marshal(aux)
+                    }
+                
+                Em Go, "embedding" (ou "incorporação") é um recurso que permite a inclusão de um tipo dentro de outro tipo.
+                Isso é feito de forma anônima, sem usar um campo nomeado, permitindo que os métodos e os campos do tipo
+                incorporado sejam acessíveis diretamente no tipo que o incorpora.
+
+                    ### Exemplo Básico de Embedding
+                        Vamos ver um exemplo básico de como o embedding funciona.
+
+                        type Pessoa struct {
+                            Nome  string
+                            Idade int
+                        }
+
+                        func (p Pessoa) Saudacao() { fmt.Printf("Olá, meu nome é %s e eu tenho %d anos.\n", p.Nome, p.Idade) }
+
+                        // Tipo que incorpora Pessoa
+                        type Estudante struct {
+                            Pessoa  // Embedding de Pessoa
+                            Curso string
+                        }
+
+                        func main() {
+                            e := Estudante{
+                                Pessoa: Pessoa{
+                                    Nome:  "Bob",
+                                    Idade: 20,
+                                },
+                                Curso: "Engenharia",
+                            }
+
+                            // Acessando campos e métodos de Pessoa diretamente através de Estudante
+                            fmt.Println(e.Nome)      // Output: Bob
+                            fmt.Println(e.Idade)     // Output: 20
+                            e.Saudacao()             // Output: Olá, meu nome é Bob e eu tenho 20 anos.
+                            fmt.Println(e.Curso)     // Output: Engenharia
+                        }
+                    
+                    ### Embedding e Sobrescrita de Métodos
+                        Você também pode sobrescrever métodos no tipo que incorpora outro tipo.
+
+                        // Tipo que incorpora Pessoa
+                        type Estudante struct {
+                            Pessoa  // Embedding de Pessoa
+                            Curso string
+                        }
+
+                        // Sobrescrevendo o método Saudacao
+                        func (e Estudante) Saudacao() {
+                            e.Pessoa.Saudacao()  // Chamando o método Saudacao de Pessoa
+                            fmt.Printf("Eu sou um estudante do curso de %s.\n", e.Curso)
+                        }
+
+                        func main() {
+                            e := Estudante{
+                                Pessoa: Pessoa{
+                                    Nome:  "Bob",
+                                    Idade: 20,
+                                },
+                                Curso: "Engenharia",
+                            }
+
+                            e.Saudacao()  // Chama o método Saudacao de Estudante
+                            // Output:
+                            // Olá, meu nome é Bob e eu tenho 20 anos.
+                            // Eu sou um estudante do curso de Engenharia.
+                        }
+
+                    ### Uso em Interfaces
+                    O embedding é frequentemente usado com interfaces para implementar polimorfismo de maneira eficaz.
+
+                        type Saudador interface {
+                            Saudacao()
+                        }
+
+                        type Pessoa struct {
+                            Nome  string
+                            Idade int
+                        }
+
+                        func (p Pessoa) Saudacao() {
+                            fmt.Printf("Olá, meu nome é %s e eu tenho %d anos.\n", p.Nome, p.Idade)
+                        }
+
+                        // Tipo que incorpora Pessoa
+                        type Estudante struct {
+                            Pessoa
+                            Curso string
+                        }
+
+                        // Sobrescrevendo o método Saudacao
+                        func (e Estudante) Saudacao() {
+                            e.Pessoa.Saudacao()
+                            fmt.Printf("Eu sou um estudante do curso de %s.\n", e.Curso)
+                        }
+
+                    Resumo
+                        - Embedding em Go permite incluir um tipo dentro de outro tipo sem usar um campo nomeado.
+                        - Campos e métodos do tipo incorporado são acessíveis diretamente no tipo que o incorpora.
+                        - Métodos podem ser sobrescritos no tipo que incorpora outro tipo.
+                        - Embedding é útil em combinação com interfaces para alcançar polimorfismo.
+
+                Esta opção tem algumas particularidades:
+                    - A tecnica usada funciona como um "truque", pois se baseia no fato de que
+                      tipos recém não herdam métodos.
+                      Isso torna o código menos claro em relação a primeira opção.
+                    
+                    - Perda no controle de ordenação dos campos na resposta JSON.
+                      Neste exemplo o campo Runtime sempre será o último elemento do objeto JSON.
