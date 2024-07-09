@@ -147,3 +147,62 @@ Chapter 3.4 Formatting and Enveloping Responses
         Alterar o tipo do parametro data do writeJSON() de helpers.go para "envelope".
         Atualizar showMovieHandler para criar uma instância de "envelope" e fornece-la na chamada a writeJSON().
         O mesmo deve ser feito em healthcheckHandler.
+
+Chapter 3.5 Advanced JSON Customization
+
+    O que acontece se as customizações de JSON vistas até agora forem suficientes?
+
+        Para responder a essa pergunta, primeiro precisamos falar um pouco da teoria
+        sobre como Go lida com a codificação JSON nos bastidores.
+
+            Quando Go está codificando um tipo específico para JSON,
+            ele verifica se o tipo satisfaz a interface json.Marshaler.
+
+                type Marshaler interface {
+                    MarshalJSON() ([]byte, error)
+                }
+        
+            Se o tipo satisfizer a interface, Go chamará seu método MarshalJSON() e
+            usará a slice de []byte que ele retorna como o valor JSON codificado.
+
+            Se o tipo não tiver um método MarshalJSON(), Go tentará codificá-lo
+            para JSON com base em seu próprio conjunto interno de regras.
+
+            Para customizar a maneira como um tipo é codificado, tudo que precisamos fazer é
+            implementar o método MarshalJSON() que retorna uma slice de [] bytes representando o JSON.
+    
+    Customizing the Runtime field
+
+        O campo Runtime de Movie é codificado como int32, mas queremos que ele seja uma string "<Runtime> mins".
+
+        A maneira correta de se fazer isso é criar um tipo personalizado especificamente para
+        o campo Runtime e implementar o método MarshalJSON() nesse tipo personalizado.
+
+        Criar o arquivo runtime.go em internal/data/ para armazenar a lógica do campo Runtime.
+
+                func (r Runtime) MarshalJSON() ([]byte, error) {
+                    jsonValue := fmt.Sprintf("%d mins", r)
+
+                    quotedJSONValue := strconv.Quote(jsonValue)
+
+                    return []byte(quotedJSONValue), nil
+                }
+
+            - Se o método MarshalJSON() retornar uma string, ela deve ser colocada entre aspas
+              duplas usando o método auxiliar strconv.Quote().
+
+                    jsonValue = "102 mins"
+                    quotedJSONValue = "\"102 mins\""
+
+            - Usamos deliberadamente o 'value receiver' no método MarshalJSON() de runtime.go:
+
+                    value receiver      = func (r Runtime) MarshalJSON() ([]byte, error) {}
+                    pointer receiver    = func (r *Runtime) MarshalJSON() ([]byte, error) {}
+            
+              Isso dá mais flexibilidade pois a customização de codificação do JSON poderá ser
+              usada em Runtime value e Runtime pointer.
+
+                    "Métodos de valor podem ser invocados com ponteiros e valores,
+                    mas métodos de ponteiro só podem ser invocados em ponteiros."
+
+        Atualizar a struct Movie para usar o novo tipo Runtime.
