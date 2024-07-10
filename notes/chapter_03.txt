@@ -423,3 +423,104 @@ Chapter 3.6 Sending Error Messages
 
     Criar o arquivo errors.go em cmd/api/.
     Atualizar os handlers dos arquivos movies.go e healthcheck.go para utilizar os helpers de errors.go.
+
+
+    Routing errors
+
+        Mensagens de erro enviadas por nossos handlers agora serão respostas JSON, o que é ótimo.
+        Mas e as mensagens de erro que o httprouter envia quando não consegue encontrar uma rota correspondente?
+        Por padrão, essas respostas estarão em plain-text.
+
+        Felizmente, o httprouter permite definir error handlers customizados no momento que o router é iniciado.
+        Os handlers devem satisfazer a interface http.Handler e isso é uma ótima noticia pois podemos utilizar os
+        helpers notFoundResponse() e methodNotAllowedResponse() criados no passo anterior.
+
+            ### Implementando a Interface 'http.Handler'(https://pkg.go.dev/net/http#Handler):
+
+                type CustomNotFoundHandler struct {
+                    app *application
+                }
+
+                func (h CustomNotFoundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+                    message := "the requested resource could not be found"
+                    h.app.errorResponse(w, r, http.StatusNotFound, message)
+                }
+
+                func (app *application) routes() *httprouter.Router {
+                    router := httprouter.New()
+                    router.NotFound = CustomNotFoundHandler{}
+                    return router
+                }
+
+                func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
+                    CustomNotFoundHandler{app: app}.ServeHTTP(w, r)
+                    return
+                }
+            
+            ### Usando o Adaptador 'http.HandlerFunc'(https://pkg.go.dev/net/http#HandlerFunc):
+
+                func (app *application) notFoundResponse(w http.ResponseWriter, r *http.Request) {
+                    message := "the requested resource could not be found"
+                    app.errorResponse(w, r, http.StatusNotFound, message)
+                }
+
+                func (app *application) routes() *httprouter.Router {
+                    router := httprouter.New()
+                    router.NotFound = http.HandlerFunc(app.notFoundResponse)
+                    return router
+                }
+
+                func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
+		            app.notFoundResponse(w, r)
+                }
+            
+        Neste caso vamos usar a abordagem com o adaptador http.HandlerFunc.
+        Alguns exemplos de respostas obtidas:
+            $ curl -i localhost:4000/foo
+                HTTP/1.1 404 Not Found
+                Content-Type: application/json
+                Date: Tue, 06 Apr 2021 15:13:42 GMT
+                Content-Length: 58
+
+                {
+                    "error": "the requested resource could not be found"
+                }
+
+            $ curl -i localhost:4000/v1/movies/abc
+                HTTP/1.1 404 Not Found
+                Content-Type: application/json
+                Date: Tue, 06 Apr 2021 15:14:01 GMT
+                Content-Length: 58
+
+                {
+                    "error": "the requested resource could not be found"
+                }
+
+            $ curl -i -X PUT localhost:4000/v1/healthcheck
+                HTTP/1.1 405 Method Not Allowed
+                Allow: GET, OPTIONS
+                Content-Type: application/json
+                Date: Tue, 06 Apr 2021 15:14:21 GMT
+                Content-Length: 66
+
+                {
+                    "error": "the PUT method is not supported for this resource"
+                }
+
+    Additional Information
+
+        Em certos cenários, o http.Server do Go ainda pode gerar e enviar automaticamente respostas HTTP em texto simples.
+            - A solicitação HTTP especifica uma versão do protocolo HTTP não suportada.
+            - A solicitação HTTP contém um cabeçalho Host ausente ou inválido ou vários cabeçalhos Host.
+            - A solicitação HTTP contém um nome ou valor de cabeçalho inválido.
+            - A solicitação HTTP contém um cabeçalho Transfer-Encoding não suportado.
+            - O cliente faz uma solicitação HTTP para um servidor HTTPS.
+        
+        Exemplo:
+
+            $ curl -i -H "Host: こんにちは"  http://localhost:4000/v1/healthcheck
+                HTTP/1.1 400 Bad Request: malformed Host header
+                Content-Type: text/plain; charset=utf-8
+                Connection: close
+
+                400 Bad Request: malformed Host header
