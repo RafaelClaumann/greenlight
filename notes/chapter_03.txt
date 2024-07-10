@@ -1,0 +1,526 @@
+Chapter 3 Sending JSON Responses
+
+    - Como enviar respostas JSON da sua API REST.
+    - Como codificar objetos Go para JSON usando o pacote encoding/json.
+    - Técnicas para customizar a maneira que objetos Go são encodificados como JSON.
+    - Como criar um helper para enviar respostas JSON e manter a API consistente.
+
+3.1 Fixed-Format JSON
+
+    Atualizar o healthcheckHandler para que retorne um JSON parecido com este:
+        {
+            "status": "available",
+            "environment": "development",
+            "version": "1.0.0"
+        }
+    
+    Vale ressaltar que JSON é apenas um texto, ele poderia ser escrito com w.Write(), io.WriteString() ou qualquer fmt.Fprint.
+
+    Os handlers que respondem com objetos JSON devem incluir o header Content-Type: application/json 
+    para que os clientes saibam como interpretar a resposta.
+
+        $ curl -i localhost:4000/v1/healthcheck
+            HTTP/1.1 200 OK
+            Content-Type: application/json
+            Date: Tue, 06 Apr 2021 08:38:12 GMT
+            Content-Length: 73
+
+            {"status": "available", "environment": "development", "version": "1.0.0"}
+
+3.2 JSON Encoding
+    
+    O pacote encoding/json fornece duas possibilidades para codificar objetos para JSON.
+        - Invocar a função json.Marshal() 
+        - Declarar e utilizar o json.Encoder type
+    
+    Para enviar JSON através de requisições HTTP, json.Marshal() geralmente é a melhor escolha.
+    O json.Marshal() recebe um objeto Go como parâmetro e retorna sua representação JSON em um slice byte[].
+    A assinatura desta função se parece com isso:
+        func Marshal(v interface{}) ([]byte, error)
+    
+    O parâmetro v é conhecido como Empty Interface.
+    Isso significa que qualquer tipo do Go pode ser passado como o parametro v.
+
+    Atualizar o healthcheckHandler para que ele use json.Marshal() para gerar um JSON a partir de um map.
+
+        $curl localhost:4000/v1/healthcheck -i
+            HTTP/1.1 200 OK
+            Content-Type: application/json
+            Date: Mon, 17 Jun 2024 00:37:06 GMT
+            Content-Length: 69
+
+            {"environment":"development","status":"available","version":"1.0.0"}
+    
+    Creating a writeJSON helper method
+
+        Como a API vai responder JSONs em diferentes lugares faz sentido criar um metodo helper writeJSON().
+        Também será preciso um método helper para inseris headers arbitrários nas respostas.
+        Com a criação do writeJSON() podemos simplificar o handler healthcheckHandler.
+
+3.3 Encoding Structs
+
+    Vamos criar uma nova struct Movie na pasta internal/data, codifica-la em JSON e retorna-la no método showMovieHandler.
+    O objeto json é escrito na resposta usando o helper writeJSON().
+    
+    É crucial que os campos de Movie sejam exportados, ou seja, declarados com a primeira letra maiuscula.
+    Desta forma os campos estarão visiveis a biblioteca encoding/json.
+
+    Changing keys in the JSON object
+
+        É possível customizar os campos codificados no JSON anotando-os com Struct Tags.
+        O uso mais comum para isso é alterar a forma com que o nome do campo é apresentado no objeto JSON.
+
+        Vamos anotar os campos da struct Movie para seguir o padrão snake_case.
+    
+    Hiding struct fields in the JSON object
+
+        Também é possível controlar a visibilidae dos campos individualmente usando as flags omitempty e -(hífen).
+
+        O -(hífen) serve para ocultar um campo sob qualquer ciscunstancia.
+        Isso é útil para campos que contêm informações internas do sistema que não são relevantes para seus usuários
+        ou informações confidenciais que você não deseja expor.
+
+        O omitempty oculta o campo se e somente se o valor do campo estiver vazio.
+        Vazio(empty) significa que:
+            - O valor é igual a false, 0 ou "".
+            - É um array, slice ou map vazio.
+            - É um ponteiro nil ou valor de inteface nil.
+        
+        O campo CreatedAt deve estar oculto em todos os casos.
+        Os campos Year, Runtime e Genres devem ser ocultados da resposta se e somente se forem vazios.
+
+        É possível usar omitempty sem alterar o nome do campo.
+        
+            Basta fazer:
+                `json:",omitempty"`
+            ao invés de:
+                `json:"year,omitempty"`
+
+        Lembrando que também é possível ocultar um campo do JSON declarando-o com inicial em letra minuscula.
+        Usar o -(hifen) é uma boa prática e ajuda na leitura do código.
+
+    Additional Information
+
+        The string struct tag directive
+
+            É possível usar a tag 'string' em campos da struct para forçar os dados a serem representados como uma string na saída JSON.
+
+                type Movie struct {
+                    ID        int64     `json:"id"`
+                    CreatedAt time.Time `json:"-"`
+                    Title     string    `json:"title"`
+                    Year      int32     `json:"year,omitempty"`
+                    Runtime   int32     `json:"runtime,omitempty,string"` // Add the string directive
+                    Genres    []string  `json:"genres,omitempty"` 
+                    Version   int32     `json:"version"`
+                }
+
+Chapter 3.4 Formatting and Enveloping Responses
+
+    Os objetos JSON retornados nas requisições feitas com CURL ficam fora de formatação no terminal.
+
+        $ curl localhost:4000/v1/healthcheck
+        {"environment":"development","status":"available","version":"1.0.0"}
+
+        $ curl localhost:4000/v1/movies/123
+        {"id":123,"title":"Casablanca","runtime":102,"genres":["drama","romance","war"],"version":1}
+    
+    É possível melhorar isso usando a função json.MarshalIndent() ao invés da json.Marshal().
+    Este método adiciona espaços, novas linhas e formatação no objeto JSON retornado.
+
+    Atualizar o helper writeJSON() para usar json.MarshalIndent().
+
+    Relative performance
+
+        Apesar de melhorar a legibilidade e experiencia do usuário, o método json.MarshalIndent()
+        acaba degradando a performance e aumentando o tamanho das respostas devido aos caracteres de formatação.
+
+    Enveloping responses
+
+        Vamos encapsular os dados do filme retornado em um objeto "movie" no json.
+        Beneficios de encapsular o objeto:
+            - Torna a resposta auto-documentável e facilita a vida de leitores que a receberem fora de contexto.
+            - Reduz o risco de erros de processamento no clientside. Ele só processará o bjeto se a chave for "movie".
+            - Mitigar erros de segurança em browsers antigos.
+
+        Vamos criar um "envelope" do tipo map[string]interface{} em helpers.go.
+        Alterar o tipo do parametro data do writeJSON() de helpers.go para "envelope".
+        Atualizar showMovieHandler para criar uma instância de "envelope" e fornece-la na chamada a writeJSON().
+        O mesmo deve ser feito em healthcheckHandler.
+
+Chapter 3.5 Advanced JSON Customization
+
+    O que acontece se as customizações de JSON vistas até agora forem suficientes?
+
+        Para responder a essa pergunta, primeiro precisamos falar um pouco da teoria
+        sobre como Go lida com a codificação JSON nos bastidores.
+
+            Quando Go está codificando um tipo específico para JSON,
+            ele verifica se o tipo satisfaz a interface json.Marshaler.
+
+                type Marshaler interface {
+                    MarshalJSON() ([]byte, error)
+                }
+        
+            Se o tipo satisfizer a interface, Go chamará seu método MarshalJSON() e
+            usará a slice de []byte que ele retorna como o valor JSON codificado.
+
+            Se o tipo não tiver um método MarshalJSON(), Go tentará codificá-lo
+            para JSON com base em seu próprio conjunto interno de regras.
+
+            Para customizar a maneira como um tipo é codificado, tudo que precisamos fazer é
+            implementar o método MarshalJSON() que retorna uma slice de [] bytes representando o JSON.
+    
+    Customizing the Runtime field
+
+        O campo Runtime de Movie é codificado como int32, mas queremos que ele seja uma string "<Runtime> mins".
+
+        A maneira correta de se fazer isso é criar um tipo personalizado especificamente para
+        o campo Runtime e implementar o método MarshalJSON() nesse tipo personalizado.
+
+        Criar o arquivo runtime.go em internal/data/ para armazenar a lógica do campo Runtime.
+
+                func (r Runtime) MarshalJSON() ([]byte, error) {
+                    jsonValue := fmt.Sprintf("%d mins", r)
+
+                    quotedJSONValue := strconv.Quote(jsonValue)
+
+                    return []byte(quotedJSONValue), nil
+                }
+
+            - Se o método MarshalJSON() retornar uma string, ela deve ser colocada entre aspas
+              duplas usando o método auxiliar strconv.Quote().
+
+                    jsonValue = "102 mins"
+                    quotedJSONValue = "\"102 mins\""
+
+            - Usamos deliberadamente o 'value receiver' no método MarshalJSON() de runtime.go:
+
+                    value receiver      = func (r Runtime) MarshalJSON() ([]byte, error) {}
+                    pointer receiver    = func (r *Runtime) MarshalJSON() ([]byte, error) {}
+            
+              Isso dá mais flexibilidade pois a customização de codificação do JSON poderá ser
+              usada em Runtime value e Runtime pointer.
+
+                    "Métodos de valor podem ser invocados com ponteiros e valores,
+                    mas métodos de ponteiro só podem ser invocados em ponteiros."
+
+        Atualizar a struct Movie para usar o novo tipo Runtime.
+    
+    Additional Information
+
+        Existem outras abordagens possíveis para customização do campo Runtime.
+
+            Alternative #1 - Customizing the Movie struct
+
+                Ao invés de criar o tipo Runtime, podemos implementar o método MarshalJSON() na própria struct Movie.
+
+
+                    // Note that there are no struct tags on the Movie struct itself.
+                    type Movie struct {
+                        ID        int64
+                        CreatedAt time.Time
+                        Title     string
+                        Year      int32
+                        Runtime   int32
+                        Genres    []string
+                        Version   int32
+                    }
+
+                    // Implement MarshalJSON() method on the Movie struct, so that it satisfies the json.Marshaler interface.
+                    func (m Movie) MarshalJSON() ([]byte, error) {
+                        // Declare a variable to hold the custom runtime string (this will be the empty string "" by default).
+                        var runtime string
+
+                        // If the value of the Runtime field is not zero, set the runtime variable to be a
+                        // string in the format "<runtime> mins".
+                        if m.Runtime != 0 {
+                            runtime = fmt.Sprintf("%d mins", m.Runtime)
+                        }
+
+                        // Create an anonymous struct to hold the data for JSON encoding.
+                        // This has exactly the same fields, types and tags as our Movie struct,
+                        // except that the Runtime field here is a string, instead of an int32.
+                        // Also notice that we don't include a CreatedAt field at all (there's no point including one,
+                        // because we don't want it to appear in the JSON output).
+                        aux := struct {
+                            ID      int64    `json:"id"`
+                            Title   string   `json:"title"`
+                            Year    int32    `json:"year,omitempty"`
+                            Runtime string   `json:"runtime,omitempty"` // This is a string.
+                            Genres  []string `json:"genres,omitempty"`
+                            Version int32    `json:"version"`
+                        }{
+                            // Set the values for the anonymous struct.
+                            ID:      m.ID,
+                            Title:   m.Title,
+                            Year:    m.Year,
+                            Runtime: runtime, // Note that we assign the value from the runtime variable here.
+                            Genres:  m.Genres,
+                            Version: m.Version,
+                        }
+
+                        // Encode the anonymous struct to JSON, and return it.
+                        return json.Marshal(aux)
+                    }
+                
+            Alternative #2 - Embedding an alias
+
+                O problema do código anterior é a verbosidade e repetição.
+                Para reduzir a duplicação é possível "embedar" um alias para a struct Movie na struct anonima.
+
+                    // Notice that we use the - directive on the Runtime field, so that it never appears  in the JSON output.
+                    type Movie struct {
+                        ID        int64     `json:"id"`
+                        CreatedAt time.Time `json:"-"`
+                        Title     string    `json:"title"`
+                        Year      int32     `json:"year,omitempty"`
+                        Runtime   int32     `json:"-"`
+                        Genres    []string  `json:"genres,omitempty"`
+                        Version   int32     `json:"version"`
+                    }
+
+                    func (m Movie) MarshalJSON() ([]byte, error) {
+                        // Create a variable holding the custom runtime string, just like before.
+                        var runtime string
+
+                        if m.Runtime != 0 {
+                            runtime = fmt.Sprintf("%d mins", m.Runtime)
+                        }
+
+                        // Define a MovieAlias type which has the underlying type Movie.
+                        // Due to the way that Go handles type definitions the MovieAlias type will contain all the fields
+                        // that our Movie struct has but, importantly, none of the methods. 
+                        type MovieAlias Movie
+
+                        // Embed the MovieAlias type inside the anonymous struct, along with a Runtime field 
+                        // that has the type string and the necessary struct tags.
+                        // It's important that we embed the MovieAlias type here, rather than the Movie type directly, to avoid 
+                        // inheriting the MarshalJSON() method of the Movie type (which would result in an infinite loop during encoding).
+                        aux := struct {
+                            MovieAlias
+                            Runtime string `json:"runtime,omitempty"`
+                        }{
+                            MovieAlias: MovieAlias(m),
+                            Runtime:    runtime,
+                        }
+
+                        return json.Marshal(aux)
+                    }
+                
+                Em Go, "embedding" (ou "incorporação") é um recurso que permite a inclusão de um tipo dentro de outro tipo.
+                Isso é feito de forma anônima, sem usar um campo nomeado, permitindo que os métodos e os campos do tipo
+                incorporado sejam acessíveis diretamente no tipo que o incorpora.
+
+                    ### Exemplo Básico de Embedding
+                        Vamos ver um exemplo básico de como o embedding funciona.
+
+                        type Pessoa struct {
+                            Nome  string
+                            Idade int
+                        }
+
+                        func (p Pessoa) Saudacao() { fmt.Printf("Olá, meu nome é %s e eu tenho %d anos.\n", p.Nome, p.Idade) }
+
+                        // Tipo que incorpora Pessoa
+                        type Estudante struct {
+                            Pessoa  // Embedding de Pessoa
+                            Curso string
+                        }
+
+                        func main() {
+                            e := Estudante{
+                                Pessoa: Pessoa{
+                                    Nome:  "Bob",
+                                    Idade: 20,
+                                },
+                                Curso: "Engenharia",
+                            }
+
+                            // Acessando campos e métodos de Pessoa diretamente através de Estudante
+                            fmt.Println(e.Nome)      // Output: Bob
+                            fmt.Println(e.Idade)     // Output: 20
+                            e.Saudacao()             // Output: Olá, meu nome é Bob e eu tenho 20 anos.
+                            fmt.Println(e.Curso)     // Output: Engenharia
+                        }
+                    
+                    ### Embedding e Sobrescrita de Métodos
+                        Você também pode sobrescrever métodos no tipo que incorpora outro tipo.
+
+                        // Tipo que incorpora Pessoa
+                        type Estudante struct {
+                            Pessoa  // Embedding de Pessoa
+                            Curso string
+                        }
+
+                        // Sobrescrevendo o método Saudacao
+                        func (e Estudante) Saudacao() {
+                            e.Pessoa.Saudacao()  // Chamando o método Saudacao de Pessoa
+                            fmt.Printf("Eu sou um estudante do curso de %s.\n", e.Curso)
+                        }
+
+                        func main() {
+                            e := Estudante{
+                                Pessoa: Pessoa{
+                                    Nome:  "Bob",
+                                    Idade: 20,
+                                },
+                                Curso: "Engenharia",
+                            }
+
+                            e.Saudacao()  // Chama o método Saudacao de Estudante
+                            // Output:
+                            // Olá, meu nome é Bob e eu tenho 20 anos.
+                            // Eu sou um estudante do curso de Engenharia.
+                        }
+
+                    ### Uso em Interfaces
+                    O embedding é frequentemente usado com interfaces para implementar polimorfismo de maneira eficaz.
+
+                        type Saudador interface {
+                            Saudacao()
+                        }
+
+                        type Pessoa struct {
+                            Nome  string
+                            Idade int
+                        }
+
+                        func (p Pessoa) Saudacao() {
+                            fmt.Printf("Olá, meu nome é %s e eu tenho %d anos.\n", p.Nome, p.Idade)
+                        }
+
+                        // Tipo que incorpora Pessoa
+                        type Estudante struct {
+                            Pessoa
+                            Curso string
+                        }
+
+                        // Sobrescrevendo o método Saudacao
+                        func (e Estudante) Saudacao() {
+                            e.Pessoa.Saudacao()
+                            fmt.Printf("Eu sou um estudante do curso de %s.\n", e.Curso)
+                        }
+
+                    Resumo
+                        - Embedding em Go permite incluir um tipo dentro de outro tipo sem usar um campo nomeado.
+                        - Campos e métodos do tipo incorporado são acessíveis diretamente no tipo que o incorpora.
+                        - Métodos podem ser sobrescritos no tipo que incorpora outro tipo.
+                        - Embedding é útil em combinação com interfaces para alcançar polimorfismo.
+
+                Esta opção tem algumas particularidades:
+                    - A tecnica usada funciona como um "truque", pois se baseia no fato de que
+                      tipos recém não herdam métodos.
+                      Isso torna o código menos claro em relação a primeira opção.
+                    
+                    - Perda no controle de ordenação dos campos na resposta JSON.
+                      Neste exemplo o campo Runtime sempre será o último elemento do objeto JSON.
+
+Chapter 3.6 Sending Error Messages
+
+    Neste momento nossa API responde mensagens de erro em plain text usando os métodos http.Error() e http.NotFound().
+    Vamos resolver isso criando helpers capazes de enviar respostas JSON.
+
+    Criar o arquivo errors.go em cmd/api/.
+    Atualizar os handlers dos arquivos movies.go e healthcheck.go para utilizar os helpers de errors.go.
+
+
+    Routing errors
+
+        Mensagens de erro enviadas por nossos handlers agora serão respostas JSON, o que é ótimo.
+        Mas e as mensagens de erro que o httprouter envia quando não consegue encontrar uma rota correspondente?
+        Por padrão, essas respostas estarão em plain-text.
+
+        Felizmente, o httprouter permite definir error handlers customizados no momento que o router é iniciado.
+        Os handlers devem satisfazer a interface http.Handler e isso é uma ótima noticia pois podemos utilizar os
+        helpers notFoundResponse() e methodNotAllowedResponse() criados no passo anterior.
+
+            ### Implementando a Interface 'http.Handler'(https://pkg.go.dev/net/http#Handler):
+
+                type CustomNotFoundHandler struct {
+                    app *application
+                }
+
+                func (h CustomNotFoundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+                    message := "the requested resource could not be found"
+                    h.app.errorResponse(w, r, http.StatusNotFound, message)
+                }
+
+                func (app *application) routes() *httprouter.Router {
+                    router := httprouter.New()
+                    router.NotFound = CustomNotFoundHandler{}
+                    return router
+                }
+
+                func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
+                    CustomNotFoundHandler{app: app}.ServeHTTP(w, r)
+                    return
+                }
+            
+            ### Usando o Adaptador 'http.HandlerFunc'(https://pkg.go.dev/net/http#HandlerFunc):
+
+                func (app *application) notFoundResponse(w http.ResponseWriter, r *http.Request) {
+                    message := "the requested resource could not be found"
+                    app.errorResponse(w, r, http.StatusNotFound, message)
+                }
+
+                func (app *application) routes() *httprouter.Router {
+                    router := httprouter.New()
+                    router.NotFound = http.HandlerFunc(app.notFoundResponse)
+                    return router
+                }
+
+                func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
+		            app.notFoundResponse(w, r)
+                }
+            
+        Neste caso vamos usar a abordagem com o adaptador http.HandlerFunc.
+        Alguns exemplos de respostas obtidas:
+            $ curl -i localhost:4000/foo
+                HTTP/1.1 404 Not Found
+                Content-Type: application/json
+                Date: Tue, 06 Apr 2021 15:13:42 GMT
+                Content-Length: 58
+
+                {
+                    "error": "the requested resource could not be found"
+                }
+
+            $ curl -i localhost:4000/v1/movies/abc
+                HTTP/1.1 404 Not Found
+                Content-Type: application/json
+                Date: Tue, 06 Apr 2021 15:14:01 GMT
+                Content-Length: 58
+
+                {
+                    "error": "the requested resource could not be found"
+                }
+
+            $ curl -i -X PUT localhost:4000/v1/healthcheck
+                HTTP/1.1 405 Method Not Allowed
+                Allow: GET, OPTIONS
+                Content-Type: application/json
+                Date: Tue, 06 Apr 2021 15:14:21 GMT
+                Content-Length: 66
+
+                {
+                    "error": "the PUT method is not supported for this resource"
+                }
+
+    Additional Information
+
+        Em certos cenários, o http.Server do Go ainda pode gerar e enviar automaticamente respostas HTTP em texto simples.
+            - A solicitação HTTP especifica uma versão do protocolo HTTP não suportada.
+            - A solicitação HTTP contém um cabeçalho Host ausente ou inválido ou vários cabeçalhos Host.
+            - A solicitação HTTP contém um nome ou valor de cabeçalho inválido.
+            - A solicitação HTTP contém um cabeçalho Transfer-Encoding não suportado.
+            - O cliente faz uma solicitação HTTP para um servidor HTTPS.
+        
+        Exemplo:
+
+            $ curl -i -H "Host: こんにちは"  http://localhost:4000/v1/healthcheck
+                HTTP/1.1 400 Bad Request: malformed Host header
+                Content-Type: text/plain; charset=utf-8
+                Connection: close
+
+                400 Bad Request: malformed Host header
